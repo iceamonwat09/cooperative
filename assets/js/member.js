@@ -61,6 +61,7 @@
      หน้าเข้าสู่ระบบ (2 ขั้น: รหัสผ่าน → OTP)
      ========================================================= */
   var pending = null; // { memberNo, otp, exp, tries, ref }
+  var otpToast = null;
   function loginPage() {
     var expired = C.SS.get('coop.m.expired', 0);
     C.SS.del('coop.m.expired');
@@ -124,7 +125,8 @@
 
   function sendOtp(m) {
     pending = { memberNo: m.memberNo, otp: otpCode(), exp: Date.now() + OTP_TTL * 1000, tries: 0, ref: randHex(2).toUpperCase(), sentAt: Date.now() };
-    C.toast('รหัส OTP ของท่านคือ ' + pending.otp + ' (Ref: ' + pending.ref + ') ใช้ได้ภายใน 5 นาที', 'otp', 'SMS ถึง ' + C.maskPhone(m.phone) + ' (Demo)');
+    if (otpToast) otpToast.remove();
+    otpToast = C.toast('รหัส OTP ของท่านคือ ' + pending.otp + ' (Ref: ' + pending.ref + ') ใช้ได้ภายใน 5 นาที', 'otp', 'SMS ถึง ' + C.maskPhone(m.phone) + ' (Demo)');
   }
   function startOtp(root, m) {
     sendOtp(m);
@@ -161,6 +163,7 @@
         otp.select(); return;
       }
       pending = null;
+      if (otpToast) { otpToast.remove(); otpToast = null; }
       C.SS.set(SESSION_KEY, { memberNo: m.memberNo, token: randHex(16), loginAt: Date.now(), lastActive: Date.now() });
       C.audit('member:' + m.memberNo, 'login', 'เข้าสู่ระบบสำเร็จ (รหัสผ่าน + OTP)');
       C.toast('เข้าสู่ระบบสำเร็จ', 'success');
@@ -335,8 +338,8 @@
         </div>
         <p class="small muted">วิธีชำระ: ${l.method === 'annuity' ? 'ผ่อนคงที่ (คงยอด)' : 'ลดต้นลดดอก (คงต้น)'} · ดอกเบี้ย ${l.rate.toFixed(2)}% ต่อปี · เริ่มสัญญา ${C.fmtDate(l.start, 'long')} · ผู้ค้ำประกัน ${l.guarantors} คน</p>
         <h2 style="font-size:1.05rem;margin-top:16px">ตารางผ่อนชำระ</h2>
-        <div class="table-wrap" style="max-height:460px"><table class="table"><thead><tr><th scope="col">งวด</th><th scope="col">ครบกำหนด</th><th scope="col" class="r">เงินต้น</th><th scope="col" class="r">ดอกเบี้ย</th><th scope="col" class="r">ค่างวด</th><th scope="col" class="r">คงเหลือ</th><th scope="col">สถานะ</th></tr></thead>
-        <tbody>${st.sch.rows.map(function (r, i) { var paid = i < st.paid; return html`<tr${i === st.paid ? raw(' id="nextRow" style="background:var(--gold-100)"') : ''}><td class="num">${r.n}</td><td>${C.fmtDate(st.dueDates[i])}</td><td class="r">${C.money(r.principal)}</td><td class="r">${C.money(r.interest)}</td><td class="r"><strong>${C.money(r.payment)}</strong></td><td class="r">${C.money(r.balance)}</td><td>${paid ? html`<span class="badge badge--success">ชำระแล้ว</span>` : i === st.paid ? html`<span class="badge badge--gold">งวดถัดไป</span>` : html`<span class="badge badge--muted">รอชำระ</span>`}</td></tr>`; })}</tbody></table></div>
+        <div class="table-wrap table-wrap--scroll"><table class="table table--sched"><thead><tr><th scope="col">งวด</th><th scope="col">ครบกำหนด</th><th scope="col" class="r col-detail">เงินต้น</th><th scope="col" class="r col-detail">ดอกเบี้ย</th><th scope="col" class="r">ค่างวด</th><th scope="col" class="r">คงเหลือ</th><th scope="col">สถานะ</th></tr></thead>
+        <tbody>${st.sch.rows.map(function (r, i) { var paid = i < st.paid; return html`<tr${i === st.paid ? raw(' id="nextRow" style="background:var(--gold-100)"') : ''}><td class="num">${r.n}</td><td class="nowrap">${C.fmtDate(st.dueDates[i])}</td><td class="r col-detail">${C.money(r.principal)}</td><td class="r col-detail">${C.money(r.interest)}</td><td class="r"><strong>${C.money(r.payment)}</strong></td><td class="r">${C.money(r.balance)}</td><td>${paid ? html`<span class="badge badge--success">ชำระแล้ว</span>` : i === st.paid ? html`<span class="badge badge--gold">งวดถัดไป</span>` : html`<span class="badge badge--muted">รอชำระ</span>`}</td></tr>`; })}</tbody></table></div>
       </div></div>`;
   }
 

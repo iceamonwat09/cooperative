@@ -98,8 +98,13 @@
     el.className = 'toast' + (type ? ' toast--' + type : '');
     if (title) { var s = document.createElement('strong'); s.textContent = title; el.appendChild(s); }
     el.appendChild(document.createTextNode(msg));
+    var x = document.createElement('button');
+    x.type = 'button'; x.className = 'toast__close'; x.setAttribute('aria-label', 'ปิดข้อความ'); x.textContent = '×';
+    x.addEventListener('click', function () { el.remove(); });
+    el.appendChild(x);
     box.appendChild(el);
-    setTimeout(function () { el.remove(); }, type === 'otp' ? 12000 : 5000);
+    setTimeout(function () { el.remove(); }, type === 'otp' ? 60000 : 5000);
+    return el;
   }
 
   /* ---------------- Dialog helpers ---------------- */
@@ -273,10 +278,10 @@
   function go(path) { if (currentPath() === path) render(); else location.hash = '#' + path; }
 
   /* ---------------- Shared page parts ---------------- */
-  function pageHero(title, sub, crumbs) {
+  function pageHero(title, sub, crumbs, current) {
     crumbs = crumbs || [];
     return html`<section class="page-hero"><div class="container">
-      <nav class="breadcrumb" aria-label="เส้นทาง"><ol><li><a href="#/">หน้าแรก</a></li>${crumbs.map(function (c) { return c.href ? html`<li><a href="${c.href}">${c.label}</a></li>` : html`<li aria-current="page">${c.label}</li>`; })}<li aria-current="page">${title}</li></ol></nav>
+      <nav class="breadcrumb" aria-label="เส้นทาง"><ol><li><a href="#/">หน้าแรก</a></li>${crumbs.map(function (c) { return c.href ? html`<li><a href="${c.href}">${c.label}</a></li>` : html`<li aria-current="page">${c.label}</li>`; })}<li aria-current="page">${current || title}</li></ol></nav>
       <h1>${title}</h1>${sub ? html`<p>${sub}</p>` : ''}</div></section>`;
   }
   function catOf(key) { return D.CATEGORIES.filter(function (c) { return c.key === key; })[0] || D.CATEGORIES[0]; }
@@ -293,7 +298,7 @@
       <div class="news-card__body">
         <h3><a href="#/news/${n.id}">${n.title}</a></h3>
         <p>${n.excerpt}</p>
-        <div class="news-meta"><time datetime="${n.date}">${fmtDate(n.date)}</time>${n.attach ? html`<span>${icon('i-file')} มีไฟล์แนบ</span>` : ''}</div>
+        <div class="news-meta"><span class="cat-label">${c.label}</span><time datetime="${n.date}">${fmtDate(n.date)}</time>${n.attach ? html`<span>${icon('i-file')} มีไฟล์แนบ</span>` : ''}</div>
       </div></article>`;
   }
   function rateOf(id) {
@@ -374,7 +379,7 @@
       <section class="section section--alt" aria-labelledby="h-news"><div class="container">
         <div class="section-head"><div><span class="eyebrow">ข่าวสารสหกรณ์</span><h2 id="h-news">ข่าวและประกาศล่าสุด</h2></div>
           <a class="btn btn--outline btn--sm" href="#/news">ดูข่าวทั้งหมด ${icon('i-arrow')}</a></div>
-        <div class="news-grid">${news.map(newsCard)}</div>
+        <div class="news-grid news-grid--compact">${news.map(newsCard)}</div>
       </div></section>
 
       <section class="section" aria-labelledby="h-trust"><div class="container">
@@ -500,13 +505,12 @@
     if (!n) return notFound();
     var c = catOf(n.cat);
     var related = sortedNews().filter(function (x) { return x.cat === n.cat && x.id !== n.id; }).slice(0, 3);
-    return { title: n.title, html: html`${pageHero(c.label, '', [{ label: 'ข่าวและประกาศ', href: '#/news' }])}
+    return { title: n.title, html: html`${pageHero(n.title, '', [{ label: 'ข่าวและประกาศ', href: '#/news' }, { label: c.label }], 'รายละเอียดข่าว')}
       <section class="section"><div class="container"><article class="article">
-        <h1>${n.title}</h1>
         <div class="article__meta"><span class="badge">${c.label}</span>${n.pinned ? html`<span class="badge badge--gold">${icon('i-pin')} ปักหมุด</span>` : ''}<time datetime="${n.date}">ประกาศเมื่อ ${fmtDate(n.date, 'long')}</time></div>
         <div class="article__body">${(n.body || [n.excerpt]).map(function (para) { return html`<p>${para}</p>`; })}</div>
         ${n.attach ? html`<h2 class="small muted" style="margin-top:24px">ไฟล์แนบ</h2><a class="attach" href="${safeUrl(n.attach.file)}" target="_blank" rel="noopener"><span class="attach__icon">PDF</span><span><strong>${n.attach.name}</strong><br><span class="small muted">${n.attach.size || ''} · เปิดในแท็บใหม่</span></span></a>` : ''}
-        <p style="margin-top:24px" class="no-print"><a class="btn btn--outline" href="#/news">‹ กลับไปหน้าข่าว</a> <button type="button" class="btn btn--ghost" id="printBtn">${icon('i-print')} พิมพ์</button></p>
+        <p style="margin-top:24px" class="no-print actions-row"><a class="btn btn--outline" href="#/news">‹ กลับไปหน้าข่าว</a><button type="button" class="btn btn--ghost" id="printBtn">${icon('i-print')} พิมพ์</button></p>
       </article>
       ${related.length ? html`<h2 style="margin-top:40px">ข่าวที่เกี่ยวข้อง</h2><div class="news-grid">${related.map(newsCard)}</div>` : ''}
       </div></section>`, after: function (root) { root.querySelector('#printBtn').addEventListener('click', function () { window.print(); }); } };
@@ -713,7 +717,7 @@
         if (m === 'compare') {
           var a = schedule(P, R, N, 'flat-principal'), b = schedule(P, R, N, 'annuity');
           out.innerHTML = html`<div class="calc-result"><div class="small">ประหยัดดอกเบี้ยด้วยแบบลดต้นลดดอก</div><div class="big">${money(b.totalInterest - a.totalInterest)} บาท</div>
-            <div class="table-wrap" style="margin-top:14px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)"><table class="table" style="color:#fff"><thead><tr><th style="background:rgba(255,255,255,.1);color:#fff"></th><th class="r" style="background:rgba(255,255,255,.1);color:#fff">ลดต้นลดดอก</th><th class="r" style="background:rgba(255,255,255,.1);color:#fff">ผ่อนคงที่</th></tr></thead><tbody>
+            <div class="table-wrap"><table class="table"><thead><tr><th scope="col"><span class="sr-only">รายการ</span></th><th scope="col" class="r">ลดต้นลดดอก</th><th scope="col" class="r">ผ่อนคงที่</th></tr></thead><tbody>
             <tr><td>ค่างวดแรก</td><td class="r">${money(a.first)}</td><td class="r">${money(b.first)}</td></tr>
             <tr><td>ค่างวดสุดท้าย</td><td class="r">${money(a.last)}</td><td class="r">${money(b.last)}</td></tr>
             <tr><td>ดอกเบี้ยรวม</td><td class="r">${money(a.totalInterest)}</td><td class="r">${money(b.totalInterest)}</td></tr>
@@ -728,9 +732,9 @@
           <dl><dt>เงินต้น</dt><dd>${money(P)}</dd><dt>ค่างวดสุดท้าย</dt><dd>${money(s.last)}</dd><dt>ดอกเบี้ยรวม</dt><dd>${money(s.totalInterest)}</dd><dt>ยอดชำระรวม</dt><dd>${money(s.total)}</dd><dt>จำนวนงวด</dt><dd>${N} งวด</dd></dl>
           <p style="margin:14px 0 0"><a class="btn btn--white btn--sm" href="#calcTable" id="toTable">ดูตารางผ่อนชำระ</a></p></div>`.__raw;
         tbl.innerHTML = html`<div class="section-head" style="margin-top:32px"><h2 style="margin:0">ตารางผ่อนชำระ (${N} งวด)</h2><button type="button" class="btn btn--outline btn--sm no-print" id="printSch">${icon('i-print')} พิมพ์ตาราง</button></div>
-          <div class="table-wrap" style="max-height:520px"><table class="table"><thead><tr><th scope="col">งวดที่</th><th scope="col" class="r">เงินต้น</th><th scope="col" class="r">ดอกเบี้ย</th><th scope="col" class="r">ค่างวด</th><th scope="col" class="r">คงเหลือ</th></tr></thead>
-          <tbody>${s.rows.map(function (r) { return html`<tr><td class="num">${r.n}</td><td class="r">${money(r.principal)}</td><td class="r">${money(r.interest)}</td><td class="r"><strong>${money(r.payment)}</strong></td><td class="r">${money(r.balance)}</td></tr>`; })}</tbody>
-          <tfoot><tr><td>รวม</td><td class="r">${money(P)}</td><td class="r">${money(s.totalInterest)}</td><td class="r">${money(s.total)}</td><td></td></tr></tfoot></table></div>`.__raw;
+          <div class="table-wrap table-wrap--scroll"><table class="table table--sched"><thead><tr><th scope="col">งวดที่</th><th scope="col" class="r col-detail">เงินต้น</th><th scope="col" class="r col-detail">ดอกเบี้ย</th><th scope="col" class="r">ค่างวด</th><th scope="col" class="r">คงเหลือ</th></tr></thead>
+          <tbody>${s.rows.map(function (r) { return html`<tr><td class="num">${r.n}</td><td class="r col-detail">${money(r.principal)}</td><td class="r col-detail">${money(r.interest)}</td><td class="r"><strong>${money(r.payment)}</strong></td><td class="r">${money(r.balance)}</td></tr>`; })}</tbody>
+          <tfoot><tr><td>รวม</td><td class="r col-detail">${money(P)}</td><td class="r col-detail">${money(s.totalInterest)}</td><td class="r">${money(s.total)}</td><td></td></tr></tfoot></table></div>`.__raw;
         tbl.querySelector('#printSch').addEventListener('click', function () { window.print(); });
         out.querySelector('#toTable').addEventListener('click', function (ev) { ev.preventDefault(); tbl.scrollIntoView({ behavior: 'smooth' }); });
       } catch (err) {
@@ -801,7 +805,7 @@
      ========================================================= */
   function barChart(data, key, opts) {
     opts = opts || {};
-    var W = 560, H = 260, pad = { l: 56, r: 12, t: 24, b: 32 };
+    var W = 560, H = 260, pad = { l: 76, r: 12, t: 24, b: 32 };
     var max = Math.max.apply(null, data.map(function (d) { return d[key]; }));
     var nice = Math.pow(10, Math.floor(Math.log10(max))); max = Math.ceil(max / nice) * nice;
     var bw = (W - pad.l - pad.r) / data.length;
@@ -819,20 +823,21 @@
   function lineChart(data, keys, opts) {
     var W = 560, H = 260, pad = { l: 44, r: 16, t: 24, b: 32 };
     var all = []; keys.forEach(function (k) { data.forEach(function (d) { all.push(d[k]); }); });
-    var max = Math.ceil(Math.max.apply(null, all) + 1), min = 0;
-    var step = (W - pad.l - pad.r) / (data.length - 1);
+    var max = Math.ceil((Math.max.apply(null, all) + 1) / 4) * 4, min = 0; // ลงตัวทีละ 4 ช่อง
+    var step = (W - pad.l - pad.r) / data.length;
+    var x0 = pad.l + step / 2;
     var y = function (v) { return pad.t + (H - pad.t - pad.b) * (1 - (v - min) / (max - min)); };
     var s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(opts.label) + '">';
     for (var g = 0; g <= 4; g++) { var gv = min + (max - min) * g / 4, gy = y(gv); s += '<line class="grid-line" x1="' + pad.l + '" x2="' + (W - pad.r) + '" y1="' + gy + '" y2="' + gy + '"/><text x="' + (pad.l - 8) + '" y="' + (gy + 4) + '" text-anchor="end">' + gv.toFixed(0) + '%</text>'; }
     keys.forEach(function (k, ki) {
-      var pts = data.map(function (d, i) { return (pad.l + i * step) + ',' + y(d[k]); }).join(' ');
+      var pts = data.map(function (d, i) { return (x0 + i * step) + ',' + y(d[k]); }).join(' ');
       s += '<polyline class="line" points="' + pts + '"' + (ki ? ' style="stroke:var(--brand-600)"' : '') + '/>';
       data.forEach(function (d, i) {
-        s += '<circle class="dot" cx="' + (pad.l + i * step) + '" cy="' + y(d[k]) + '" r="5"' + (ki ? ' style="stroke:var(--brand-600)"' : '') + '/>';
-        s += '<text class="val" x="' + (pad.l + i * step) + '" y="' + (y(d[k]) - 10) + '" text-anchor="middle">' + d[k].toFixed(2) + '</text>';
+        s += '<circle class="dot" cx="' + (x0 + i * step) + '" cy="' + y(d[k]) + '" r="5"' + (ki ? ' style="stroke:var(--brand-600)"' : '') + '/>';
+        s += '<text class="val" x="' + (x0 + i * step) + '" y="' + (y(d[k]) - 10) + '" text-anchor="middle">' + d[k].toFixed(2) + '</text>';
       });
     });
-    data.forEach(function (d, i) { s += '<text x="' + (pad.l + i * step) + '" y="' + (H - 10) + '" text-anchor="middle">' + esc(d.year) + '</text>'; });
+    data.forEach(function (d, i) { s += '<text x="' + (x0 + i * step) + '" y="' + (H - 10) + '" text-anchor="middle">' + esc(d.year) + '</text>'; });
     return raw(s + '</svg>');
   }
   function dataTable(caption, cols, rows) {
@@ -887,6 +892,7 @@
             </ul></div></div>
           <div class="card"><div class="card__body"><h3>เวลาทำการ</h3><dl class="dl">${S.hours.map(function (h) { return html`<dt>${h[0]}</dt><dd>${h[1]}</dd>`; })}</dl></div></div>
           <iframe class="map-frame" title="แผนที่ตั้งสหกรณ์" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=${encodeURIComponent(S.mapQuery)}&output=embed"></iframe>
+          <div class="card"><div class="card__body map-fallback"><span class="small muted">${icon('i-map')} แผนที่ไม่แสดง? เปิดในแอปแผนที่ได้โดยตรง</span><a class="btn btn--outline btn--sm" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(S.mapQuery)}" target="_blank" rel="noopener">เปิดใน Google Maps</a></div></div>
         </div>
         <form class="card" id="complaintForm" novalidate><div class="card__body form-grid">
           <div><h2 style="font-size:1.25rem;margin-bottom:4px">ร้องเรียน / เสนอแนะ</h2><p class="small muted" style="margin:0">ข้อมูลของท่านจะถูกเก็บเป็นความลับ และใช้เพื่อการติดต่อกลับเท่านั้น</p></div>
@@ -895,7 +901,7 @@
             <span class="error-msg">กรุณาเลือกประเภทเรื่อง</span></div>
           <div class="form-grid form-grid--2">
             <div class="field"><label for="cfName">ชื่อ – นามสกุล <span class="req">*</span></label><input id="cfName" class="input" required maxlength="100" autocomplete="name"><span class="error-msg">กรุณากรอกชื่อ</span></div>
-            <div class="field"><label for="cfPhone">เบอร์โทรศัพท์ <span class="req">*</span></label><span class="hint">เช่น 0812345678</span><input id="cfPhone" class="input" type="tel" required pattern="0[0-9]{8,9}" inputmode="tel" autocomplete="tel"><span class="error-msg">เบอร์โทร 9–10 หลัก ขึ้นต้นด้วย 0</span></div>
+            <div class="field"><label for="cfPhone">เบอร์โทรศัพท์ <span class="req">*</span></label><input id="cfPhone" class="input" type="tel" required pattern="0[0-9]{8,9}" inputmode="tel" autocomplete="tel" placeholder="เช่น 0812345678"><span class="error-msg">เบอร์โทร 9–10 หลัก ขึ้นต้นด้วย 0</span></div>
           </div>
           <div class="field"><label for="cfEmail">อีเมล (ถ้ามี)</label><input id="cfEmail" class="input" type="email" autocomplete="email" maxlength="120"><span class="error-msg">รูปแบบอีเมลไม่ถูกต้อง</span></div>
           <div class="field"><label for="cfMsg">รายละเอียด <span class="req">*</span></label><textarea id="cfMsg" class="textarea" required minlength="10" maxlength="2000"></textarea><span class="hint"><span id="cfCount">0</span>/2000 ตัวอักษร</span><span class="error-msg">กรุณากรอกรายละเอียดอย่างน้อย 10 ตัวอักษร</span></div>

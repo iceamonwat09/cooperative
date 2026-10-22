@@ -111,7 +111,7 @@
       { k: 'excerpt', label: 'สรุปย่อ', type: 'textarea', req: true, max: 300 },
       { k: 'body', label: 'เนื้อหา (เว้นบรรทัดว่างเพื่อขึ้นย่อหน้าใหม่)', type: 'paragraphs', req: true, max: 10000 },
       { k: 'attach', label: 'ไฟล์แนบ PDF (ไม่เกิน 10 MB)', type: 'pdf' }
-    ], cols: [['title', 'หัวข้อ'], ['cat', 'หมวด', function (v) { return (D.CATEGORIES.filter(function (c) { return c.key === v; })[0] || {}).label; }], ['date', 'วันที่', function (v) { return C.fmtDate(v); }], ['pinned', 'ปักหมุด', function (v) { return v ? '📌' : ''; }]] },
+    ], cols: [['title', 'หัวข้อ'], ['cat', 'หมวด', function (v) { return (D.CATEGORIES.filter(function (c) { return c.key === v; })[0] || {}).label; }], ['date', 'วันที่', function (v) { return html`<span class="nowrap">${C.fmtDate(v)}</span>`; }], ['pinned', 'ปักหมุด', function (v) { return v ? html`<span class="badge badge--gold">${icon('i-pin')} ปักหมุด</span>` : ''; }]] },
     banners: { key: 'BANNERS', idPrefix: 'b', title: 'แบนเนอร์หน้าแรก', fields: [
       { k: 'tag', label: 'ป้ายกำกับ', type: 'text', req: true, max: 40 },
       { k: 'title', label: 'หัวข้อ', type: 'text', req: true, max: 120 },
