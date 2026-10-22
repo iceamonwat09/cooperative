@@ -62,7 +62,7 @@
     del: function (k) { try { localStorage.removeItem(k); } catch (e) { delete mem[k]; } }
   };
   var SS = {
-    get: function (k, def) { try { var v = sessionStorage.getItem(k); return v === null ? def : JSON.parse(v); } catch (e) { return k in mem ? mem['s:' + k] : def; } },
+    get: function (k, def) { try { var v = sessionStorage.getItem(k); return v === null ? def : JSON.parse(v); } catch (e) { return ('s:' + k) in mem ? mem['s:' + k] : def; } },
     set: function (k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) { mem['s:' + k] = v; } },
     del: function (k) { try { sessionStorage.removeItem(k); } catch (e) { delete mem['s:' + k]; } }
   };
@@ -197,6 +197,8 @@
       var b = e.target.closest('.nav-parent');
       if (b) {
         var open = b.getAttribute('aria-expanded') !== 'true';
+        // เปิดด้วย hover อยู่แล้ว: คลิกครั้งแรกไม่ต้องปิด
+        if (!open && b.dataset.hoverOpen === '1') { b.dataset.hoverOpen = ''; return; }
         closeAll(b);
         b.setAttribute('aria-expanded', String(open));
         document.getElementById(b.getAttribute('aria-controls')).classList.toggle('is-open', open);
@@ -205,8 +207,8 @@
       if (e.target.closest('a')) closeAll();
     });
     nav.querySelectorAll('.has-sub').forEach(function (li) {
-      li.addEventListener('mouseenter', function () { if (matchMedia('(hover:hover)').matches) { var b = li.querySelector('.nav-parent'); closeAll(b); b.setAttribute('aria-expanded', 'true'); li.querySelector('.submenu').classList.add('is-open'); } });
-      li.addEventListener('mouseleave', function () { if (matchMedia('(hover:hover)').matches) closeAll(); });
+      li.addEventListener('mouseenter', function () { if (matchMedia('(hover:hover)').matches) { var b = li.querySelector('.nav-parent'); closeAll(b); if (b.getAttribute('aria-expanded') !== 'true') b.dataset.hoverOpen = '1'; b.setAttribute('aria-expanded', 'true'); li.querySelector('.submenu').classList.add('is-open'); } });
+      li.addEventListener('mouseleave', function () { if (matchMedia('(hover:hover)').matches) { li.querySelector('.nav-parent').dataset.hoverOpen = ''; closeAll(); } });
     });
     document.addEventListener('click', function (e) { if (!e.target.closest('#mainnav')) closeAll(); });
     document.addEventListener('keydown', function (e) {
@@ -245,7 +247,8 @@
   var cleanup = [];
   function onCleanup(fn) { cleanup.push(fn); }
   function currentPath() { var h = location.hash.replace(/^#/, ''); return h.split('?')[0] || '/'; }
-  function render() {
+  function render(opts) {
+    opts = opts && opts.keepScroll ? opts : {};
     // hash ที่ไม่ใช่ route (เช่น #main จาก skip link) ไม่ต้อง render ใหม่
     if (location.hash && location.hash.indexOf('#/') !== 0) {
       if (render.first) history.replaceState(null, '', '#/'); else return;
@@ -256,7 +259,12 @@
     var match = null, params = {};
     for (var i = 0; i < routes.length; i++) {
       var m = routes[i].re.exec(path);
-      if (m) { match = routes[i]; routes[i].keys.forEach(function (k, j) { params[k] = decodeURIComponent(m[j + 1]); }); break; }
+      if (m) {
+        match = routes[i];
+        try { routes[i].keys.forEach(function (k, j) { params[k] = decodeURIComponent(m[j + 1]); }); }
+        catch (e) { match = null; } // URL encode ผิดรูปแบบ → 404
+        break;
+      }
     }
     var page;
     try {
@@ -270,8 +278,8 @@
     document.title = (page.title ? page.title + ' | ' : '') + D.SITE.name;
     markActiveNav(path);
     if (page.after) { try { page.after(main, params); } catch (err) { console.error(err); toast('เกิดข้อผิดพลาดในการแสดงผลบางส่วน', 'error'); } }
-    if (!page.keepScroll) window.scrollTo(0, 0);
-    if (!render.first) main.focus({ preventScroll: true });
+    if (!page.keepScroll && !opts.keepScroll) window.scrollTo(0, 0);
+    if (!render.first && !opts.keepScroll) main.focus({ preventScroll: true });
     render.first = false;
   }
   render.first = true;
@@ -356,6 +364,7 @@
         </div></div>
       </section>
 
+      <h1 class="sr-only">${D.SITE.name}</h1>
       <section class="quick" aria-label="บริการด่วน"><div class="container"><div class="quick__grid">
         <a class="quick__item" href="#/member"><span class="quick__icon">${icon('i-user')}</span><span><strong>ตรวจสอบข้อมูลสมาชิก</strong><small>หุ้น เงินฝาก เงินกู้ ปันผล</small></span></a>
         <a class="quick__item" href="#/downloads"><span class="quick__icon">${icon('i-download')}</span><span><strong>ดาวน์โหลดแบบฟอร์ม</strong><small>คำขอกู้ สวัสดิการ ระเบียบ</small></span></a>
@@ -633,6 +642,7 @@
     if (!(principal > 0) || !(months > 0) || !(ratePct >= 0)) throw new Error('ข้อมูลไม่ถูกต้อง');
     var r = ratePct / 100 / 12, bal = principal, rows = [], totalInt = 0;
     var pmt = method === 'annuity' ? (r === 0 ? principal / months : principal * r / (1 - Math.pow(1 + r, -months))) : 0;
+    pmt = Math.ceil(round2(pmt * 100)) / 100; // ปัดขึ้นเป็นสตางค์ งวดสุดท้ายจึงไม่สูงกว่างวดอื่น
     var prinFixed = principal / months;
     for (var i = 1; i <= months; i++) {
       var interest = round2(bal * r);
@@ -656,7 +666,7 @@
             <select id="cType" class="select">${D.LOAN_TYPES.map(function (t) { return html`<option value="${t.id}" ${t.id === preset.id ? raw('selected') : ''}>${t.name}</option>`; })}</select></div>
           <div class="field"><label for="cAmount">จำนวนเงินกู้ <span class="req">*</span></label>
             <span class="hint" id="cAmountHint">ระหว่าง 1,000 – ${num(preset.max)} บาท</span>
-            <div class="input-group"><input id="cAmount" class="input num" inputmode="numeric" required value="500,000" aria-describedby="cAmountHint cAmountErr" autocomplete="off"><span class="addon">บาท</span></div>
+            <div class="input-group"><input id="cAmount" class="input num" inputmode="numeric" required value="${num(Math.min(500000, preset.max))}" aria-describedby="cAmountHint cAmountErr" autocomplete="off"><span class="addon">บาท</span></div>
             <span class="error-msg" id="cAmountErr" role="alert"></span></div>
           <div class="form-grid form-grid--2">
             <div class="field"><label for="cRate">ดอกเบี้ย <span class="req">*</span></label>
@@ -665,7 +675,7 @@
             <div class="field"><label for="cMonths">จำนวนงวด <span class="req">*</span></label>
               <div class="input-group"><input id="cMonths" class="input num" type="number" step="1" min="1" max="${preset.maxMonths}" required value="${Math.min(120, preset.maxMonths)}" aria-describedby="cMonthsHint cMonthsErr"><span class="addon">เดือน</span></div>
               <span class="hint" id="cMonthsHint">สูงสุด ${preset.maxMonths} งวด</span>
-              <span class="error-msg" id="cMonthsErr">จำนวนงวดเกินที่ระเบียบกำหนด</span></div>
+              <span class="error-msg" id="cMonthsErr">จำนวนงวดไม่ถูกต้อง</span></div>
           </div>
           <fieldset class="field" style="border:0;padding:0;margin:0"><legend class="label" style="margin-bottom:6px">วิธีคำนวณ</legend>
             <div class="seg">
@@ -701,15 +711,22 @@
       if (r) rate.value = r.rate;
       months.max = t.maxMonths;
       if (+months.value > t.maxMonths) months.value = t.maxMonths;
+      var av = parseAmount(amount.value);
+      if (!isNaN(av) && av > t.max) amount.value = num(t.max);
       root.querySelector('#cMonthsHint').textContent = 'สูงสุด ' + t.maxMonths + ' งวด';
       root.querySelector('#cAmountHint').textContent = 'ระหว่าง 1,000 – ' + num(t.max) + ' บาท';
       validateAmount();
     });
     amount.addEventListener('input', validateAmount);
-    amount.addEventListener('blur', function () { var v = parseAmount(amount.value); if (!isNaN(v)) amount.value = num(v); });
+    function validateMonths() {
+      var v = months.validity, el = root.querySelector('#cMonthsErr');
+      el.textContent = v.valueMissing || v.badInput ? 'กรุณากรอกจำนวนงวด' : v.rangeUnderflow ? 'อย่างน้อย 1 งวด' : v.rangeOverflow ? 'เกินที่ระเบียบกำหนด (สูงสุด ' + months.max + ' งวด)' : v.stepMismatch ? 'จำนวนงวดต้องเป็นจำนวนเต็ม' : '';
+    }
+    months.addEventListener('input', validateMonths);
+    amount.addEventListener('blur', function () { var v = parseAmount(amount.value); if (!isNaN(v)) amount.value = v % 1 ? money(v) : num(v); });
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      validateAmount();
+      validateAmount(); validateMonths();
       if (!form.checkValidity()) { form.reportValidity(); out.innerHTML = ''; tbl.innerHTML = ''; return; }
       var P = parseAmount(amount.value), R = parseFloat(rate.value), N = parseInt(months.value, 10);
       var m = form.querySelector('input[name="method"]:checked').value;
@@ -913,10 +930,14 @@
       </div></section>`, after: function (root) {
       var f = root.querySelector('#complaintForm');
       var msg = root.querySelector('#cfMsg');
-      msg.addEventListener('input', function () { root.querySelector('#cfCount').textContent = msg.value.length; });
+      msg.addEventListener('input', function () { root.querySelector('#cfCount').textContent = msg.value.length; msg.setCustomValidity(''); });
+      root.querySelector('#cfName').addEventListener('input', function (e) { e.target.setCustomValidity(''); });
       f.addEventListener('submit', function (e) {
         e.preventDefault();
         if (root.querySelector('#cfWeb').value) return; // honeypot: บอท
+        var nm = root.querySelector('#cfName');
+        nm.setCustomValidity(nm.value.trim() ? '' : 'กรุณากรอกชื่อ');
+        msg.setCustomValidity(msg.value.trim().length >= 10 ? '' : 'กรุณากรอกรายละเอียดอย่างน้อย 10 ตัวอักษร');
         if (!f.checkValidity()) { f.reportValidity(); return; }
         var last = SS.get('coop.cf.last', 0);
         if (Date.now() - last < 30000) { toast('กรุณารอสักครู่ก่อนส่งเรื่องใหม่', 'error'); return; }

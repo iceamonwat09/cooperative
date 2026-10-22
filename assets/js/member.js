@@ -40,7 +40,13 @@
     if (Date.now() - s.lastActive > IDLE_MIN * 60000) { C.SS.del(SESSION_KEY); C.SS.set('coop.m.expired', 1); return null; }
     return s;
   }
-  function touch() { var s = C.SS.get(SESSION_KEY, null); if (s) { s.lastActive = Date.now(); C.SS.set(SESSION_KEY, s); } }
+  function touch() {
+    var s = C.SS.get(SESSION_KEY, null);
+    if (!s) return;
+    // หมดอายุแล้วห้ามต่ออายุ (เช่น แท็บถูกพัก/เครื่อง sleep แล้วกลับมาคลิก)
+    if (Date.now() - s.lastActive > IDLE_MIN * 60000) { C.toast('หมดเวลาการใช้งาน ระบบออกจากระบบให้อัตโนมัติ', 'error'); logout('timeout'); return; }
+    s.lastActive = Date.now(); C.SS.set(SESSION_KEY, s);
+  }
   function logout(reason) {
     var s = C.SS.get(SESSION_KEY, null);
     if (s) C.audit('member:' + s.memberNo, 'logout', reason || 'ออกจากระบบ');
@@ -62,6 +68,7 @@
      ========================================================= */
   var pending = null; // { memberNo, otp, exp, tries, ref }
   var otpToast = null;
+  function clearOtpToast() { if (otpToast) { otpToast.remove(); otpToast = null; } }
   function loginPage() {
     var expired = C.SS.get('coop.m.expired', 0);
     C.SS.del('coop.m.expired');
@@ -149,7 +156,7 @@
       if (left <= 0) { resend.disabled = false; resend.textContent = 'ขอรหัสใหม่'; } else { resend.disabled = true; resend.innerHTML = 'ขอรหัสใหม่ (<span>' + left + '</span>)'; }
     }, 1000);
     C.onCleanup(function () { clearInterval(iv); });
-    body.querySelector('#backLogin').addEventListener('click', function (e) { e.preventDefault(); pending = null; C.render(); });
+    body.querySelector('#backLogin').addEventListener('click', function (e) { e.preventDefault(); pending = null; clearOtpToast(); C.render(); });
     resend.addEventListener('click', function () { sendOtp(m); body.querySelector('#otpRef').textContent = '(Ref: ' + pending.ref + ')'; body.querySelector('#otpMsg').innerHTML = ''; otp.value = ''; otp.focus(); });
     body.querySelector('#otpForm').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -158,7 +165,7 @@
       if (!pending || Date.now() > pending.exp) { out.innerHTML = html`<div class="alert alert--danger" role="alert">รหัส OTP หมดอายุ กรุณากด “ขอรหัสใหม่”</div>`.__raw; return; }
       if (otp.value !== pending.otp) {
         pending.tries++;
-        if (pending.tries >= OTP_TRIES) { pending = null; C.audit('member:' + m.memberNo, 'otp', 'OTP ผิดเกินกำหนด', false); C.toast('ใส่ OTP ผิดเกิน ' + OTP_TRIES + ' ครั้ง กรุณาเข้าสู่ระบบใหม่', 'error'); C.render(); return; }
+        if (pending.tries >= OTP_TRIES) { pending = null; clearOtpToast(); C.audit('member:' + m.memberNo, 'otp', 'OTP ผิดเกินกำหนด', false); C.toast('ใส่ OTP ผิดเกิน ' + OTP_TRIES + ' ครั้ง กรุณาเข้าสู่ระบบใหม่', 'error'); C.render(); return; }
         out.innerHTML = html`<div class="alert alert--danger" role="alert">รหัส OTP ไม่ถูกต้อง (เหลือ ${OTP_TRIES - pending.tries} ครั้ง)</div>`.__raw;
         otp.select(); return;
       }
@@ -179,10 +186,11 @@
   function loanStatus(l) {
     var s = C.schedule(l.principal, l.rate, l.months, l.method);
     var start = C.parseISO(l.start);
-    var paid = Math.max(0, Math.min(l.months, monthsBetween(start, AS_OF) + 1));
+    // งวดแรกครบกำหนดสิ้นเดือนถัดจากเดือนที่ทำสัญญา
+    var paid = Math.max(0, Math.min(l.months, monthsBetween(start, AS_OF)));
     var bal = paid === 0 ? l.principal : s.rows[paid - 1].balance;
     var next = paid < l.months ? s.rows[paid] : null;
-    var dueDates = s.rows.map(function (r, i) { var d = new Date(start.getFullYear(), start.getMonth() + i + 1, 0); return C.toISO(d); });
+    var dueDates = s.rows.map(function (r, i) { var d = new Date(start.getFullYear(), start.getMonth() + i + 2, 0); return C.toISO(d); });
     return { sch: s, paid: paid, remaining: l.months - paid, balance: bal, next: next, dueDates: dueDates, pctPaid: Math.round((l.principal - bal) / l.principal * 100) };
   }
   function receiptFor(m, ym) {
@@ -191,7 +199,7 @@
     var items = [{ name: 'ค่าหุ้นรายเดือน', principal: m.shares.perMonth, interest: 0 }];
     m.loans.forEach(function (l) {
       var st = loanStatus(l);
-      var idx = monthsBetween(C.parseISO(l.start), monthEnd);
+      var idx = monthsBetween(C.parseISO(l.start), monthEnd) - 1;
       if (idx >= 0 && idx < l.months) { var r = st.sch.rows[idx]; items.push({ name: l.type + ' (' + l.contract + ') งวดที่ ' + (idx + 1), principal: r.principal, interest: r.interest, balance: r.balance }); }
     });
     items.push({ name: 'เงินฝากออมทรัพย์พิเศษ (หักเงินเดือน)', principal: 3000, interest: 0 });
@@ -207,23 +215,24 @@
   function bahtText(n) {
     // แปลงจำนวนเงินเป็นตัวอักษรภาษาไทย (สำหรับใบเสร็จ)
     var digits = ['', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'], pos = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน'];
-    function read(s) {
+    function read(s, hasHigher) {
       var out = '';
-      if (s.length > 6) { out += read(s.slice(0, -6)) + 'ล้าน'; s = s.slice(-6); }
+      if (s.length > 6) { out += read(s.slice(0, -6), hasHigher) + 'ล้าน'; s = s.slice(-6); hasHigher = true; }
       s = s.replace(/^0+/, '');
       for (var i = 0; i < s.length; i++) {
         var d = +s[i], p = s.length - i - 1;
         if (!d) continue;
         if (p === 1 && d === 1) out += 'สิบ';
         else if (p === 1 && d === 2) out += 'ยี่สิบ';
-        else if (p === 0 && d === 1 && s.length > 1) out += 'เอ็ด';
+        else if (p === 0 && d === 1 && (s.length > 1 || hasHigher)) out += 'เอ็ด';
         else out += digits[d] + pos[p];
       }
       return out;
     }
     var parts = (Math.round(n * 100) / 100).toFixed(2).split('.');
-    var b = read(parts[0]) || 'ศูนย์', st = +parts[1];
-    return b + 'บาท' + (st ? read(parts[1]) + 'สตางค์' : 'ถ้วน');
+    var b = read(parts[0], false), st = +parts[1];
+    if (!b && st) return read(parts[1], false) + 'สตางค์';
+    return (b || 'ศูนย์') + 'บาท' + (st ? read(parts[1], false) + 'สตางค์' : 'ถ้วน');
   }
 
   /* =========================================================
@@ -449,13 +458,13 @@
   C.route('/member/:tab', function (p) {
     var m = guard(); if (!m) { C.go('/member'); return null; }
     var map = { overview: tabOverview, shares: tabShares, deposits: tabDeposits, loans: tabLoans, guarantees: tabGuarantees, receipts: tabReceipts, dividends: tabDividends, beneficiaries: tabBeneficiaries, password: tabPassword };
-    var fn = map[p.tab];
+    var fn = Object.prototype.hasOwnProperty.call(map, p.tab) ? map[p.tab] : null;
     if (!fn) { C.go('/member/overview'); return null; }
     var tabLabel = TABS.filter(function (t) { return t[0] === p.tab; })[0][1];
     return { title: 'สมาชิก — ' + tabLabel, html: shell(m, p.tab, fn(m)), after: function (root) {
       sessionTimer(root);
-      root.querySelectorAll('.dep-pick').forEach(function (b) { b.addEventListener('click', function () { depIdx = +b.dataset.i; C.render(); }); });
-      root.querySelectorAll('.loan-pick').forEach(function (b) { b.addEventListener('click', function () { loanIdx = +b.dataset.i; C.render(); }); });
+      root.querySelectorAll('.dep-pick').forEach(function (b) { b.addEventListener('click', function () { depIdx = +b.dataset.i; C.render({ keepScroll: true }); var f = document.querySelector('.dep-pick[data-i="' + depIdx + '"]'); if (f) f.focus(); }); });
+      root.querySelectorAll('.loan-pick').forEach(function (b) { b.addEventListener('click', function () { loanIdx = +b.dataset.i; C.render({ keepScroll: true }); var f = document.querySelector('.loan-pick[data-i="' + loanIdx + '"]'); if (f) f.focus(); }); });
       if (p.tab === 'password') initPassword(root, m);
     } };
   });

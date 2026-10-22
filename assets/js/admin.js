@@ -35,7 +35,11 @@
   ['click', 'keydown'].forEach(function (ev) {
     document.addEventListener(ev, function () {
       if (Date.now() - lastTouch < 5000 || location.hash.indexOf('#/admin') !== 0) return;
-      lastTouch = Date.now(); var s = C.SS.get(SESSION_KEY, null); if (s) { s.lastActive = Date.now(); C.SS.set(SESSION_KEY, s); }
+      lastTouch = Date.now();
+      var s = C.SS.get(SESSION_KEY, null);
+      if (!s) return;
+      if (Date.now() - s.lastActive > IDLE_MIN * 60000) { getSessionNoTouch(); C.toast('หมดเวลาการใช้งาน', 'error'); C.go('/admin'); return; }
+      s.lastActive = Date.now(); C.SS.set(SESSION_KEY, s);
     }, { capture: true, passive: true });
   });
 
@@ -47,7 +51,7 @@
       <h1 style="font-size:1.5rem;margin-bottom:4px">ระบบผู้ดูแลเว็บไซต์</h1><p class="muted">สำหรับเจ้าหน้าที่สหกรณ์ฯ เท่านั้น</p>
       ${expired ? html`<div class="alert alert--warn" role="alert" style="margin-bottom:12px">หมดเวลาการใช้งาน กรุณาเข้าสู่ระบบอีกครั้ง</div>` : ''}
       <form id="aLogin" class="form-grid" novalidate>
-        <div class="field"><label for="aUser">ชื่อผู้ใช้</label><input id="aUser" class="input" autocomplete="username" required maxlength="40" pattern="[a-zA-Z0-9._-]{3,40}"><span class="error-msg">กรุณากรอกชื่อผู้ใช้</span></div>
+        <div class="field"><label for="aUser">ชื่อผู้ใช้</label><input id="aUser" class="input" autocomplete="username" required maxlength="40" pattern="[a-zA-Z0-9._\\-]{3,40}"><span class="error-msg">กรุณากรอกชื่อผู้ใช้</span></div>
         <div class="field"><label for="aPw">รหัสผ่าน</label><input id="aPw" class="input" type="password" autocomplete="current-password" required maxlength="64"><span class="error-msg">กรุณากรอกรหัสผ่าน</span></div>
         <div id="aMsg" aria-live="assertive"></div>
         <button class="btn btn--primary btn--lg btn--block" type="submit" id="aBtn">เข้าสู่ระบบ</button>
@@ -315,7 +319,7 @@
     return rows.filter(function (r) { return r.some(function (c) { return c.trim(); }); });
   }
   function validThaiId(id) {
-    if (!/^\d{13}$/.test(id)) return false;
+    if (!/^[1-8]\d{12}$/.test(id)) return false;
     var sum = 0; for (var i = 0; i < 12; i++) sum += +id[i] * (13 - i);
     return (11 - sum % 11) % 10 === +id[12];
   }
@@ -324,11 +328,12 @@
     if (!/^\d{6}$/.test(r.member_no)) e.push('เลขทะเบียนต้องเป็นตัวเลข 6 หลัก');
     if (!r.first_name || !r.last_name) e.push('ต้องมีชื่อและนามสกุล');
     if (!validThaiId(r.id_card)) e.push('เลขบัตรประชาชนไม่ถูกต้อง');
+    if (D.MEMBERS.some(function (m) { return m.memberNo === r.member_no; })) e.push('เลขทะเบียนนี้มีอยู่ในระบบหลักแล้ว');
     if (r.phone && !/^0\d{8,9}$/.test(r.phone)) e.push('เบอร์โทรไม่ถูกต้อง');
     if (r.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email)) e.push('อีเมลไม่ถูกต้อง');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(r.join_date) || isNaN(C.parseISO(r.join_date))) e.push('วันที่เป็นสมาชิกต้องเป็น YYYY-MM-DD');
-    if (!(+r.share_total >= 0)) e.push('ทุนเรือนหุ้นต้องเป็นตัวเลข');
-    if (!(+r.share_monthly >= 0)) e.push('ค่าหุ้นรายเดือนต้องเป็นตัวเลข');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(r.join_date) || C.toISO(C.parseISO(r.join_date)) !== r.join_date) e.push('วันที่เป็นสมาชิกต้องเป็น YYYY-MM-DD');
+    if (!/^\d+(\.\d{1,2})?$/.test(r.share_total)) e.push('ทุนเรือนหุ้นต้องเป็นตัวเลข');
+    if (!/^\d+(\.\d{1,2})?$/.test(r.share_monthly)) e.push('ค่าหุ้นรายเดือนต้องเป็นตัวเลข');
     return e;
   }
   function importView(a) {
@@ -350,7 +355,7 @@
   function bindImport(root, a) {
     var tpl = root.querySelector('#tplBtn'); if (!tpl) return;
     tpl.addEventListener('click', function () {
-      var sample = [CSV_HEAD.join(','), '000777,นาย,ทดสอบ,นำเข้า,1101700230705,0899999999,test@example.com,ฝ่ายบัญชี,2020-01-15,52000,1000', '000778,นางสาว,ตัวอย่าง,ข้อมูล,1234567890121,0811111111,,ฝ่ายผลิต,2021-07-01,24000,500'].join('\r\n');
+      var sample = [CSV_HEAD.join(','), '000777,นาย,ทดสอบ,นำเข้า,1101700230708,0899999999,test@example.com,ฝ่ายบัญชี,2020-01-15,52000,1000', '000778,นางสาว,ตัวอย่าง,ข้อมูล,1234567890121,0811111111,,ฝ่ายผลิต,2021-07-01,24000,500'].join('\r\n');
       var blob = new Blob(['﻿' + sample], { type: 'text/csv;charset=utf-8' });
       var link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'member-import-template.csv'; link.click();
       setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
