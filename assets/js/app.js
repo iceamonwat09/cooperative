@@ -33,6 +33,8 @@
     if (/^#\//.test(u) || /^assets\//.test(u) || /^https:\/\//i.test(u) || /^tel:|^mailto:/i.test(u)) return u;
     return '#/';
   }
+  /* ลิงก์โทรออกเฉพาะเมื่อมีเบอร์ครบ (9–10 หลัก) ไม่เช่นนั้นพาไปหน้าติดต่อ */
+  function telHref() { var t = String(D.SITE.phoneTel || '').replace(/\D/g, ''); return /^0\d{8,9}$/.test(t) ? 'tel:' + t : '#/contact'; }
   function icon(id, cls) { return raw('<svg class="ic ' + (cls || '') + '" aria-hidden="true"><use href="#' + esc(id) + '"/></svg>'); }
 
   /* ---------------- Formatting ---------------- */
@@ -182,7 +184,7 @@
     });
     document.getElementById('drawerNav').innerHTML = html`<ul>${mob}</ul>
       <div class="drawer__cta"><a class="btn btn--gold btn--block" href="#/member">${icon('i-user')} ตรวจสอบข้อมูลสมาชิก</a>
-      <a class="btn btn--outline btn--block" href="tel:${D.SITE.phoneTel}">${icon('i-phone')} โทร ${D.SITE.phone}</a></div>`.__raw;
+      <a class="btn btn--outline btn--block" href="${telHref()}">${icon('i-phone')} โทร ${D.SITE.phone}</a></div>`.__raw;
 
     // dropdown (desktop): click/keyboard + ปิดเมื่อคลิกข้างนอก/Esc
     var nav = document.getElementById('mainnav');
@@ -412,7 +414,7 @@
 
       <section class="section"><div class="container"><div class="card"><div class="card__body cta-band">
         <div><h2 style="margin:0 0 4px">มีคำถาม? เราพร้อมช่วยเหลือ</h2><p class="muted" style="margin:0">โทร ${D.SITE.phone} (${D.SITE.hours[0][0]} ${D.SITE.hours[0][1]}) หรือเพิ่มเพื่อน LINE ${D.SITE.line}</p></div>
-        <div class="cta-band__actions"><a class="btn btn--primary" href="tel:${D.SITE.phoneTel}">${icon('i-phone')} โทรหาเรา</a><a class="btn btn--outline" href="#/faq">คำถามที่พบบ่อย</a></div>
+        <div class="cta-band__actions"><a class="btn btn--primary" href="${telHref()}">${icon('i-phone')} โทรหาเรา</a><a class="btn btn--outline" href="#/faq">คำถามที่พบบ่อย</a></div>
       </div></div></div></section>
     `, after: initHero };
   });
@@ -904,7 +906,7 @@
             <h2 style="font-size:1.25rem">${S.name}</h2>
             <ul class="feature-list contact-list">
               <li><span><strong>ที่อยู่</strong><br>${S.address}</span></li>
-              <li><span><strong>โทรศัพท์</strong><br><a href="tel:${S.phoneTel}">${S.phone}</a> · โทรสาร ${S.fax}</span></li>
+              <li><span><strong>โทรศัพท์</strong><br><a href="${telHref()}">${S.phone}</a>${S.fax ? ' · โทรสาร ' + S.fax : ''}</span></li>
               <li><span><strong>อีเมล</strong><br><a href="mailto:${S.email}">${S.email}</a></span></li>
               <li><span><strong>LINE Official Account</strong><br>${S.line}</span></li>
             </ul></div></div>
@@ -1090,8 +1092,9 @@
 
   function initSiteText() {
     document.querySelectorAll('[data-site]').forEach(function (el) { el.textContent = D.SITE[el.dataset.site]; });
+    document.querySelectorAll('[data-tel]').forEach(function (el) { el.setAttribute('href', telHref()); });
     document.getElementById('year').textContent = new Date().getFullYear() + 543;
-    document.getElementById('footerAddress').innerHTML = html`${D.SITE.address}<br>โทร <a href="tel:${D.SITE.phoneTel}">${D.SITE.phone}</a> · LINE ${D.SITE.line}<br>อีเมล <a href="mailto:${D.SITE.email}">${D.SITE.email}</a><br>${D.SITE.hours[0][0]} ${D.SITE.hours[0][1]}`.__raw;
+    document.getElementById('footerAddress').innerHTML = html`${D.SITE.address}<br>โทร <a href="${telHref()}">${D.SITE.phone}</a> · LINE ${D.SITE.line}<br>อีเมล <a href="mailto:${D.SITE.email}">${D.SITE.email}</a><br>${D.SITE.hours[0][0]} ${D.SITE.hours[0][1]}`.__raw;
   }
 
   /* ---------------- Public API สำหรับ member.js / admin.js ---------------- */

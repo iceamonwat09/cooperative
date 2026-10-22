@@ -378,7 +378,7 @@
     var r = receiptFor(m, ym);
     return html`<p class="no-print" style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn--outline btn--sm" href="#/member/receipts">‹ กลับ</a><button type="button" class="btn btn--primary btn--sm" id="printReceipt">${icon('i-print')} พิมพ์ / บันทึกเป็น PDF</button></p>
       <article class="receipt" aria-label="ใบเสร็จรับเงิน">
-        <div class="receipt__head"><img src="assets/img/logo.svg" alt="" width="56" height="56"><div><h2 style="margin:0;font-size:1.15rem">${D.SITE.name}</h2><div class="small">${D.SITE.address}</div></div></div>
+        <div class="receipt__head"><img src="assets/img/logo.webp" alt="" width="64" height="64"><div><h2 style="margin:0;font-size:1.15rem">${D.SITE.name}</h2><div class="small">${D.SITE.address}</div></div></div>
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px"><div><h3 style="margin:0">ใบเสร็จรับเงิน</h3><div class="small">ประจำเดือน ${thMonth(ym)}</div></div>
           <div class="small" style="text-align:right">เลขที่ <strong>${r.no}</strong><br>วันที่ ${C.fmtDate(r.date, 'long')}</div></div>
         <p class="small" style="margin-bottom:12px">ได้รับเงินจาก <strong>${m.title}${m.firstName} ${m.lastName}</strong> เลขทะเบียนสมาชิก ${m.memberNo} หน่วยงาน ${m.dept}</p>

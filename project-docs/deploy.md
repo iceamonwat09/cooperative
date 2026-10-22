@@ -36,7 +36,7 @@ npx http-server -p 8080 -c-1 .     # หรือ: python3 -m http.server 8080
 |---|---|
 | ชื่อสหกรณ์ ที่อยู่ เบอร์ LINE เวลาทำการ | `assets/js/data.js` → `SITE` (และ `<title>` ใน `index.html`) |
 | สี/ฟอนต์ | `assets/css/style.css` → `:root` (light) และบล็อก dark |
-| โลโก้ | `assets/img/logo.svg` |
+| โลโก้ | `assets/img/logo.webp` (หัวเว็บ/ใบเสร็จ), `logo-192.png`, `favicon-32.png`, `apple-touch-icon.png` |
 | ข่าว อัตราดอกเบี้ย ฯลฯ | ผ่านหน้า Admin (Demo) หรือแก้ `data.js` |
 | ไฟล์ PDF | วางใน `assets/files/` แล้วอ้างอิงใน `data.js` |
 | แผนที่ | `SITE.mapQuery` (ชื่อสถานที่หรือ `lat,lng`) |
