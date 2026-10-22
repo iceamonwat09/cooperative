@@ -306,7 +306,7 @@
       <div class="news-card__body">
         <h3><a href="#/news/${n.id}">${n.title}</a></h3>
         <p>${n.excerpt}</p>
-        <div class="news-meta"><span class="cat-label">${c.label}</span><time datetime="${n.date}">${fmtDate(n.date)}</time>${n.attach ? html`<span>${icon('i-file')} มีไฟล์แนบ</span>` : ''}</div>
+        <div class="news-meta">${n.pinned ? html`<span class="pin-mini" aria-label="ปักหมุด">${icon('i-pin')}</span>` : ''}<span class="cat-label">${c.label}</span><time datetime="${n.date}">${fmtDate(n.date)}</time>${n.attach ? html`<span>${icon('i-file')} มีไฟล์แนบ</span>` : ''}</div>
       </div></article>`;
   }
   function rateOf(id) {
@@ -749,9 +749,10 @@
           <dl><dt>เงินต้น</dt><dd>${money(P)}</dd><dt>ค่างวดสุดท้าย</dt><dd>${money(s.last)}</dd><dt>ดอกเบี้ยรวม</dt><dd>${money(s.totalInterest)}</dd><dt>ยอดชำระรวม</dt><dd>${money(s.total)}</dd><dt>จำนวนงวด</dt><dd>${N} งวด</dd></dl>
           <p style="margin:14px 0 0"><a class="btn btn--white btn--sm" href="#calcTable" id="toTable">ดูตารางผ่อนชำระ</a></p></div>`.__raw;
         tbl.innerHTML = html`<div class="section-head" style="margin-top:32px"><h2 style="margin:0">ตารางผ่อนชำระ (${N} งวด)</h2><button type="button" class="btn btn--outline btn--sm no-print" id="printSch">${icon('i-print')} พิมพ์ตาราง</button></div>
-          <div class="table-wrap table-wrap--scroll"><table class="table table--sched"><thead><tr><th scope="col">งวดที่</th><th scope="col" class="r col-detail">เงินต้น</th><th scope="col" class="r col-detail">ดอกเบี้ย</th><th scope="col" class="r">ค่างวด</th><th scope="col" class="r">คงเหลือ</th></tr></thead>
-          <tbody>${s.rows.map(function (r) { return html`<tr><td class="num">${r.n}</td><td class="r col-detail">${money(r.principal)}</td><td class="r col-detail">${money(r.interest)}</td><td class="r"><strong>${money(r.payment)}</strong></td><td class="r">${money(r.balance)}</td></tr>`; })}</tbody>
-          <tfoot><tr><td>รวม</td><td class="r col-detail">${money(P)}</td><td class="r col-detail">${money(s.totalInterest)}</td><td class="r">${money(s.total)}</td><td></td></tr></tfoot></table></div>`.__raw;
+          <div class="table-wrap table-wrap--scroll"><table class="table table--sched${N > 12 ? ' is-collapsed' : ''}" id="schTable"><thead><tr><th scope="col">งวดที่</th><th scope="col" class="r col-detail">เงินต้น</th><th scope="col" class="r col-detail">ดอกเบี้ย</th><th scope="col" class="r">ค่างวด</th><th scope="col" class="r">คงเหลือ</th></tr></thead>
+          <tbody>${s.rows.map(function (r, i) { return html`<tr${i >= 12 ? raw(' class="row-more"') : ''}><td class="num">${r.n}</td><td class="r col-detail">${money(r.principal)}</td><td class="r col-detail">${money(r.interest)}</td><td class="r"><strong>${money(r.payment)}</strong></td><td class="r">${money(r.balance)}</td></tr>`; })}</tbody>
+          <tfoot><tr><td>รวม</td><td class="r col-detail">${money(P)}</td><td class="r col-detail">${money(s.totalInterest)}</td><td class="r">${money(s.total)}</td><td></td></tr></tfoot></table></div>
+          ${N > 12 ? html`<div class="expand-row no-print"><button type="button" class="btn btn--outline" data-expand="schTable" aria-expanded="false">แสดงทั้งหมด ${N} งวด</button></div>` : ''}`.__raw;
         tbl.querySelector('#printSch').addEventListener('click', function () { window.print(); });
         out.querySelector('#toTable').addEventListener('click', function (ev) { ev.preventDefault(); tbl.scrollIntoView({ behavior: 'smooth' }); });
       } catch (err) {
@@ -1107,6 +1108,21 @@
   function syncAria(el) { if (el && el.matches && el.matches('input, select, textarea')) { try { el.setAttribute('aria-invalid', el.matches(':user-invalid') ? 'true' : 'false'); } catch (e) { /* old browser */ } } }
   document.addEventListener('blur', function (e) { syncAria(e.target); }, true);
   document.addEventListener('input', function (e) { if (e.target.hasAttribute && e.target.hasAttribute('aria-invalid')) syncAria(e.target); });
+
+  /* ปุ่ม "แสดงทั้งหมด" สำหรับตารางยาว (ตารางผ่อนชำระ) */
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-expand]');
+    if (!b) return;
+    var t = document.getElementById(b.dataset.expand);
+    if (!t) return;
+    var collapsed = t.classList.toggle('is-collapsed');
+    b.setAttribute('aria-expanded', String(!collapsed));
+    if (!b.dataset.label) b.dataset.label = b.textContent;
+    b.textContent = collapsed ? b.dataset.label : 'ย่อตาราง';
+    if (collapsed) t.scrollIntoView({ block: 'nearest' });
+  });
+  window.addEventListener('beforeprint', function () { document.querySelectorAll('.is-collapsed').forEach(function (t) { t.classList.add('was-collapsed'); t.classList.remove('is-collapsed'); }); });
+  window.addEventListener('afterprint', function () { document.querySelectorAll('.was-collapsed').forEach(function (t) { t.classList.remove('was-collapsed'); t.classList.add('is-collapsed'); }); });
 
   window.addEventListener('error', function (e) { console.error(e.error || e.message); });
   window.addEventListener('unhandledrejection', function (e) { console.error(e.reason); toast('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง', 'error'); });
