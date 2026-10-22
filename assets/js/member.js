@@ -44,8 +44,9 @@
     var s = C.SS.get(SESSION_KEY, null);
     if (!s) return;
     // หมดอายุแล้วห้ามต่ออายุ (เช่น แท็บถูกพัก/เครื่อง sleep แล้วกลับมาคลิก)
-    if (Date.now() - s.lastActive > IDLE_MIN * 60000) { C.toast('หมดเวลาการใช้งาน ระบบออกจากระบบให้อัตโนมัติ', 'error'); logout('timeout'); return; }
+    if (Date.now() - s.lastActive > IDLE_MIN * 60000) { C.toast('หมดเวลาการใช้งาน ระบบออกจากระบบให้อัตโนมัติ', 'error'); logout('timeout'); return true; }
     s.lastActive = Date.now(); C.SS.set(SESSION_KEY, s);
+    return false;
   }
   function logout(reason) {
     var s = C.SS.get(SESSION_KEY, null);
@@ -56,11 +57,14 @@
   }
   var lastTouch = 0;
   ['click', 'keydown', 'scroll', 'touchstart'].forEach(function (ev) {
-    document.addEventListener(ev, function () {
+    var passive = ev === 'scroll' || ev === 'touchstart';
+    document.addEventListener(ev, function (e) {
       if (Date.now() - lastTouch < 5000) return;
       lastTouch = Date.now();
-      if (location.hash.indexOf('#/member') === 0 && C.SS.get(SESSION_KEY, null)) touch();
-    }, { passive: true, capture: true });
+      if (location.hash.indexOf('#/member') === 0 && C.SS.get(SESSION_KEY, null) && touch() && !passive && e.cancelable) {
+        e.preventDefault(); e.stopPropagation(); // ไม่ให้ลิงก์ที่คลิกพาไปหน้าอื่นหลัง session หมดอายุ
+      }
+    }, { passive: passive, capture: true });
   });
 
   /* =========================================================

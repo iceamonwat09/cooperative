@@ -33,14 +33,14 @@
   function guard() { var s = getSession(); if (!s) return null; var a = findAdmin(s.username); if (!a) { C.SS.del(SESSION_KEY); return null; } return a; }
   var lastTouch = 0;
   ['click', 'keydown'].forEach(function (ev) {
-    document.addEventListener(ev, function () {
+    document.addEventListener(ev, function (e) {
       if (Date.now() - lastTouch < 5000 || location.hash.indexOf('#/admin') !== 0) return;
       lastTouch = Date.now();
       var s = C.SS.get(SESSION_KEY, null);
       if (!s) return;
-      if (Date.now() - s.lastActive > IDLE_MIN * 60000) { getSessionNoTouch(); C.toast('หมดเวลาการใช้งาน', 'error'); C.go('/admin'); return; }
+      if (Date.now() - s.lastActive > IDLE_MIN * 60000) { getSessionNoTouch(); C.toast('หมดเวลาการใช้งาน', 'error'); if (e.cancelable) { e.preventDefault(); e.stopPropagation(); } C.go('/admin'); return; }
       s.lastActive = Date.now(); C.SS.set(SESSION_KEY, s);
-    }, { capture: true, passive: true });
+    }, { capture: true });
   });
 
   /* ---------------- Login ---------------- */
